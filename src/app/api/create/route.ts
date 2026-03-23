@@ -2,7 +2,7 @@ export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { checkQuota, incrementQuota } from "@/lib/quota";
-import { generateUniqueKey, validateCustomCode, isCreateRequest, SHORTLINK_DOMAIN, CORS_HEADERS } from "@/lib/api-utils";
+import { generateUniqueKey, validateCustomCode, isCreateRequest, SHORTLINK_DOMAIN, getCorsHeadersForOrigin } from "@/lib/api-utils";
 import { getCloudflareEnv } from "@/lib/env";
 import type { StoredSplitRule } from "@/lib/split-core/types";
 import { MAX_RULES_PER_LINK, MAX_CONDITIONS_PER_RULE } from "@/lib/split-core";
@@ -62,19 +62,28 @@ function validateSplitRules(splitRules: StoredSplitRule[]): { valid: boolean; er
   return { valid: true };
 }
 
+// Handle OPTIONS preflight requests
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
 export async function POST(request: Request) {
   const env = getCloudflareEnv();
   const { DB, ShortenerLinks } = env;
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
 
   if (!DB || !ShortenerLinks) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: corsHeaders });
   }
 
   // Auth
   const authResult = await verifyAuth(request, env);
 
   if (!authResult.userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
   }
 
   // Parse body
@@ -82,25 +91,25 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: corsHeaders });
   }
 
   if (!isCreateRequest(body)) {
-    return NextResponse.json({ error: "Invalid request body" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400, headers: corsHeaders });
   }
 
   const { url: longUrl, custom, expire_days = 30, permanent = false, split_rules } = body as CreateRequest;
 
   // Validate URL
   if (!longUrl || typeof longUrl !== "string") {
-    return NextResponse.json({ error: "Missing url" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Missing url" }, { status: 400, headers: corsHeaders });
   }
 
   // Validate split_rules
   if (split_rules && split_rules.length > 0) {
     const validation = validateSplitRules(split_rules);
     if (!validation.valid) {
-      return NextResponse.json({ error: validation.error }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json({ error: validation.error }, { status: 400, headers: corsHeaders });
     }
   }
 
@@ -119,7 +128,7 @@ export async function POST(request: Request) {
   // Check quota
   const quotaCheck = await checkQuota(env, authResult.userId, quotaType);
   if (!quotaCheck.allowed) {
-    return NextResponse.json({ error: quotaCheck.error }, { status: 429, headers: CORS_HEADERS });
+    return NextResponse.json({ error: quotaCheck.error }, { status: 429, headers: corsHeaders });
   }
 
   const validExpirations = [30, 90, 180, 365];
@@ -131,12 +140,12 @@ export async function POST(request: Request) {
 
     const validation = validateCustomCode(customCode);
     if (!validation.valid) {
-      return NextResponse.json({ error: validation.error }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json({ error: validation.error }, { status: 400, headers: corsHeaders });
     }
 
     const exists = await ShortenerLinks.get(customCode);
     if (exists) {
-      return NextResponse.json({ error: "Custom code already exists" }, { status: 409, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "Custom code already exists" }, { status: 409, headers: corsHeaders });
     }
     key = customCode;
   } else {
@@ -155,13 +164,13 @@ export async function POST(request: Request) {
     ).bind(authResult.userId, key, longUrl, expirationAt, isCustom ? 1 : 0, permanent === true ? 1 : 0, authResult.apiKeyId || null, split_rules ? JSON.stringify(split_rules) : null).run();
   } catch (e) {
     console.error("Failed to insert into DB:", e);
-    return NextResponse.json({ error: "Database error" }, { status: 500, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Database error" }, { status: 500, headers: corsHeaders });
   }
 
   await incrementQuota(env, authResult.userId, quotaType);
 
   return NextResponse.json(
     { code: key, short_url: `${SHORTLINK_DOMAIN}/${key}` },
-    { status: 200, headers: CORS_HEADERS }
+    { status: 200, headers: corsHeaders }
   );
 }

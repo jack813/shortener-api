@@ -1,8 +1,15 @@
 export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
-import { CORS_HEADERS } from "@/lib/api-utils";
+import { getCorsHeadersForOrigin } from "@/lib/api-utils";
 import { getCloudflareEnv } from "@/lib/env";
+
+// Handle OPTIONS preflight requests
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
 
 export async function GET(
   request: Request,
@@ -10,21 +17,23 @@ export async function GET(
 ) {
   const env = getCloudflareEnv();
   const { DB, ShortenerLinks } = env;
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
 
   if (!DB || !ShortenerLinks) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: corsHeaders });
   }
 
   const { code } = await params;
 
   if (!code) {
-    return new NextResponse("Missing code", { status: 400, headers: CORS_HEADERS });
+    return new NextResponse("Missing code", { status: 400, headers: corsHeaders });
   }
 
   const authResult = await verifyAuth(request, env);
 
   if (!authResult.userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
   }
 
   const dbRes = await DB.prepare(
@@ -37,9 +46,9 @@ export async function GET(
     ).bind(code).first();
 
     if (exists) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "Forbidden" }, { status: 403, headers: corsHeaders });
     }
-    return new NextResponse("Not found", { status: 404, headers: CORS_HEADERS });
+    return new NextResponse("Not found", { status: 404, headers: corsHeaders });
   }
 
   const kvValue = await ShortenerLinks.getWithMetadata<string>(code, { type: "text" });
@@ -56,6 +65,6 @@ export async function GET(
       expiration_at: dbRes.expiration_at,
       kv_expire_at: kvExpireAt,
     },
-    { headers: CORS_HEADERS }
+    { headers: corsHeaders }
   );
 }

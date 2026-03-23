@@ -3,16 +3,25 @@ import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
 import { getUserQuota, getUserPlan } from "@/lib/quota";
 import { getPlanLimits, getAllowedDimensions } from "@/lib/config/pricing";
-import { CORS_HEADERS } from "@/lib/api-utils";
+import { getCorsHeadersForOrigin } from "@/lib/api-utils";
 import { getCloudflareEnv } from "@/lib/env";
+
+// Handle OPTIONS preflight requests
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
 
 export async function GET(request: Request) {
   const env = getCloudflareEnv();
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
 
   const authResult = await verifyAuth(request, env);
 
   if (!authResult.userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
   }
 
   const plan = await getUserPlan(env, authResult.userId);
@@ -41,5 +50,5 @@ export async function GET(request: Request) {
     },
     usage,
     allowedDimensions,
-  }, { headers: CORS_HEADERS });
+  }, { headers: corsHeaders });
 }

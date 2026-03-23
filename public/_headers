@@ -1,0 +1,7 @@
+# Handle OPTIONS preflight requests for API routes
+/api/*
+  Access-Control-Allow-Origin: https://dashboard.0x1.in
+  Access-Control-Allow-Methods: GET, POST, DELETE, PATCH, OPTIONS
+  Access-Control-Allow-Headers: Content-Type, Authorization
+  Access-Control-Allow-Credentials: true
+  Access-Control-Max-Age: 86400

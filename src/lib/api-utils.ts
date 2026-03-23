@@ -7,10 +7,30 @@ import type { Env } from "@/types";
 export const SHORTLINK_DOMAIN = "https://0x1.in";
 
 export const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, PATCH, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+// CORS headers for credentialed requests (cookies)
+// Must use specific origin, not "*"
+export function getCorsHeadersForOrigin(origin: string | null): Record<string, string> {
+  const allowedOrigins = [
+    "https://dashboard.0x1.in",
+    "https://shortener.0x1.in",
+    "https://0x1.in",
+    "http://localhost:3000",
+    "http://localhost:8787",
+  ];
+
+  const allowOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, PATCH, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
 
 /**
  * Generate a random key for short links

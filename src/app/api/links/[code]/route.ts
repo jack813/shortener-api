@@ -1,8 +1,15 @@
 export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
-import { CORS_HEADERS } from "@/lib/api-utils";
+import { getCorsHeadersForOrigin } from "@/lib/api-utils";
 import { getCloudflareEnv } from "@/lib/env";
+
+// Handle OPTIONS preflight requests
+export async function OPTIONS(request: Request) {
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
 
 export async function DELETE(
   request: Request,
@@ -10,21 +17,23 @@ export async function DELETE(
 ) {
   const env = getCloudflareEnv();
   const { DB, ShortenerLinks } = env;
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
 
   if (!DB || !ShortenerLinks) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: corsHeaders });
   }
 
   const { code } = await params;
 
   if (!code) {
-    return NextResponse.json({ error: "Missing code" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Missing code" }, { status: 400, headers: corsHeaders });
   }
 
   const authResult = await verifyAuth(request, env);
 
   if (!authResult.userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
   }
 
   const link = await DB.prepare(
@@ -32,7 +41,7 @@ export async function DELETE(
   ).bind(code, authResult.userId).first<{ id: number }>();
 
   if (!link) {
-    return NextResponse.json({ error: "Not found or forbidden" }, { status: 403, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Not found or forbidden" }, { status: 403, headers: corsHeaders });
   }
 
   await ShortenerLinks.delete(code);
@@ -43,7 +52,7 @@ export async function DELETE(
 
   return NextResponse.json(
     { success: true, code },
-    { status: 200, headers: CORS_HEADERS }
+    { status: 200, headers: corsHeaders }
   );
 }
 
@@ -53,21 +62,23 @@ export async function PATCH(
 ) {
   const env = getCloudflareEnv();
   const { DB, ShortenerLinks } = env;
+  const origin = request.headers.get("Origin");
+  const corsHeaders = getCorsHeadersForOrigin(origin);
 
   if (!DB || !ShortenerLinks) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Database not configured" }, { status: 500, headers: corsHeaders });
   }
 
   const { code } = await params;
 
   if (!code) {
-    return NextResponse.json({ error: "Missing code" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Missing code" }, { status: 400, headers: corsHeaders });
   }
 
   const authResult = await verifyAuth(request, env);
 
   if (!authResult.userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
   }
 
   const link = await DB.prepare(
@@ -75,14 +86,14 @@ export async function PATCH(
   ).bind(code, authResult.userId).first<{ id: number; split_rules: string | null }>();
 
   if (!link) {
-    return NextResponse.json({ error: "Not found" }, { status: 404, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Not found" }, { status: 404, headers: corsHeaders });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: corsHeaders });
   }
 
   const { split_rules, target_url, redirect_type, default_url, revoked } = (body as {
@@ -96,7 +107,7 @@ export async function PATCH(
   // Handle split_rules update
   if (split_rules !== undefined) {
     if (!Array.isArray(split_rules)) {
-      return NextResponse.json({ error: "split_rules must be an array" }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "split_rules must be an array" }, { status: 400, headers: corsHeaders });
     }
 
     try {
@@ -105,7 +116,7 @@ export async function PATCH(
       ).bind(JSON.stringify(split_rules), code, authResult.userId).run();
     } catch (error) {
       console.error("Failed to update split_rules:", error);
-      return NextResponse.json({ error: "Database error" }, { status: 500, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "Database error" }, { status: 500, headers: corsHeaders });
     }
   }
 
@@ -117,7 +128,7 @@ export async function PATCH(
     try {
       new URL(target_url);
     } catch {
-      return NextResponse.json({ error: "Invalid URL format" }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "Invalid URL format" }, { status: 400, headers: corsHeaders });
     }
     updates.push("url = ?");
     values.push(target_url);
@@ -127,7 +138,7 @@ export async function PATCH(
     try {
       new URL(default_url);
     } catch {
-      return NextResponse.json({ error: "Invalid default_url format" }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "Invalid default_url format" }, { status: 400, headers: corsHeaders });
     }
     updates.push("default_url = ?");
     values.push(default_url);
@@ -135,7 +146,7 @@ export async function PATCH(
 
   if (redirect_type !== undefined) {
     if (redirect_type !== "301" && redirect_type !== "302") {
-      return NextResponse.json({ error: "redirect_type must be '301' or '302'" }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json({ error: "redirect_type must be '301' or '302'" }, { status: 400, headers: corsHeaders });
     }
     updates.push("redirect_type = ?");
     values.push(redirect_type);
@@ -170,6 +181,6 @@ export async function PATCH(
 
   return NextResponse.json(
     { success: true },
-    { headers: CORS_HEADERS }
+    { headers: corsHeaders }
   );
 }
