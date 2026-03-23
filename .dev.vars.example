@@ -1,0 +1,9 @@
+# Local development environment variables
+# Copy this file to .dev.vars and fill in your values
+
+# GitHub OAuth (required for authentication)
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+
+# JWT Secret for session tokens (generate a random string)
+JWT_SECRET=your_jwt_secret_here

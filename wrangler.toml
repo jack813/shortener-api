@@ -1,0 +1,25 @@
+name = "shortener-api"
+compatibility_date = "2025-03-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".vercel/output/static"
+
+# KV Namespace for URL mappings
+[[kv_namespaces]]
+binding = "ShortenerLinks"
+id = "bade9298dece4bc5b1033344f4321dd8"
+
+# D1 Database for persistent data
+[[d1_databases]]
+binding = "DB"
+database_name = "0x1_shortener_link"
+database_id = "034c6667-e360-4e85-9f29-704db8c5ed35"
+
+# R2 Bucket for QR code logos
+[[r2_buckets]]
+binding = "LOGOS_BUCKET"
+bucket_name = "shortener-logos"
+
+# Environment variables (set via wrangler secret or .dev.vars)
+# GITHUB_CLIENT_ID
+# GITHUB_CLIENT_SECRET
+# JWT_SECRET
