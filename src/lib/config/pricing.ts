@@ -26,6 +26,7 @@ export interface PlanConfig {
     conditionsPerRule: number;
     dataRetentionDays: number;
     qrCodes: number;
+    trafficLimit: number; // visits per month
   };
 }
 
@@ -61,6 +62,7 @@ export const PLANS: Record<PlanType, PlanConfig> = {
       conditionsPerRule: 3,
       dataRetentionDays: 30,
       qrCodes: 0,
+      trafficLimit: 500, // 500 visits per month for free tier
     },
   },
   pro: {
@@ -102,6 +104,7 @@ export const PLANS: Record<PlanType, PlanConfig> = {
       conditionsPerRule: 10,
       dataRetentionDays: 365,
       qrCodes: 50,
+      trafficLimit: 20000, // 20,000 visits per month for pro tier
     },
   },
 };
@@ -147,4 +150,11 @@ export function getQuotaLimit(plan: PlanType, type: QuotaType): number {
     default:
       return 0;
   }
+}
+
+/**
+ * Get traffic limit for a plan (visits per month)
+ */
+export function getTrafficLimit(plan: PlanType): number {
+  return PLANS[plan].limits.trafficLimit;
 }
