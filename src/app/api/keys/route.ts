@@ -1,7 +1,6 @@
 export const runtime = 'edge';
 import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/auth";
-import { checkApiKeyLimit } from "@/lib/quota";
 import { createApiKey } from "@/lib/auth/api-key";
 import { getCorsHeadersForOrigin } from "@/lib/api-utils";
 import { getCloudflareEnv } from "@/lib/env";
@@ -52,17 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: corsHeaders });
   }
 
-  const apiKeyLimit = await checkApiKeyLimit(env, authResult.userId);
-  if (!apiKeyLimit.allowed) {
-    return NextResponse.json({ error: apiKeyLimit.error }, { status: 403, headers: corsHeaders });
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: corsHeaders });
-  }
+  const body = await request.json().catch(() => ({}));
 
   const { name } = (body as { name?: string }) || {};
   const keyName = name || "Default Key";
